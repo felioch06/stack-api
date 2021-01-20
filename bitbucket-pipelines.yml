@@ -1,0 +1,78 @@
+# This is a sample build configuration for JavaScript.
+# Check our guides at https://confluence.atlassian.com/x/14UWN for more examples.
+# Only use spaces to indent your .yml configuration.
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+image: node:14.7.0
+pipelines:
+  branches:
+    staging:
+      - step:
+          name: Install Dependencies
+          caches:
+            - node
+          script:
+            - git submodule update --init --recursive
+            - npm install
+      - step:
+          name: Build and Deploy
+          deployment: staging
+          caches:
+            - node
+          script:
+            - chmod 777 ./base.sh
+            - sed -i "s/%PROJECT/${PROJECT}/g" ./base.sh
+            - sed -i "s/%PROJECT/${PROJECT}/g" ./package.json
+            - sed -i "s/%ENV/staging/g" ./base.sh
+            - npm run build
+            - rm -rfv node_modules
+            - rm -rfv src
+            - rm -rfv bin
+            - pipe: atlassian/sftp-deploy:0.5.5
+              variables:
+                USER: $USER
+                SERVER: '$SERVER'
+                REMOTE_PATH: /home/$PROJECT/
+                LOCAL_PATH: './*'
+                DEBUG: 'true'
+                EXTRA_ARGS: '-i cert/$USER.pem'
+          after-script:
+            - ls -alhr
+            - cd cert/
+            - chmod 400 $USER.pem
+            - ssh -i $USER.pem $USER@$SERVER /home/$PROJECT/base.sh
+    production:
+      - step:
+          name: Install Dependencies
+          caches:
+            - node
+          script:
+            - git submodule update --init --recursive
+            - npm install
+      - step:
+          name: Build and Deploy
+          deployment: production
+          caches:
+            - node
+          script:
+            - chmod 777 ./base.sh
+            - sed -i "s/%PROJECT/${PROJECT}/g" ./base.sh
+            - sed -i "s/%ENV/production/g" ./base.sh
+            - sed -i "s/%PROJECT/${PROJECT}/g" ./package.json
+            - npm run build
+            - rm -rfv node_modules
+            - rm -rfv src
+            - rm -rfv bin
+            - pipe: atlassian/sftp-deploy:0.5.5
+              variables:
+                USER: $USER
+                SERVER: '$SERVER'
+                REMOTE_PATH: /home/$PROJECT/
+                LOCAL_PATH: './*'
+                DEBUG: 'true'
+                EXTRA_ARGS: '-i cert/$USER.pem'
+          after-script:
+            - ls -alhr
+            - cd cert/
+            - chmod 400 $USER.pem
+            - ssh -i $USER.pem $USER@$SERVER /home/$PROJECT/base.sh
